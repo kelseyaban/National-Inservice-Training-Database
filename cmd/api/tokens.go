@@ -4,7 +4,7 @@ package main
 import (
 	"errors"
 	"net/http"
-	"time"
+	// "time"
 
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/data"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
@@ -27,15 +27,15 @@ func (a *application) createAuthenticationTokenHandler(w http.ResponseWriter, r 
 	// Validate the email and password provided by the client.
 	v := validator.New()
 
-	data.ValidateEmail(v, incomingData.Email)
-	data.ValidatePasswordPlaintext(v, incomingData.Password)
+	// data.ValidateEmail(v, incomingData.Email)
+	// data.ValidatePasswordPlaintext(v, incomingData.Password)
 
 	if !v.IsEmpty() {
 		a.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 	// Is there an associated user for the provided email?
-	user, err := a.userModel.GetByEmail(incomingData.Email)
+	// user, err := a.userModel.GetByEmail(incomingData.Email)
 
 	if err != nil {
 		switch {
@@ -47,7 +47,7 @@ func (a *application) createAuthenticationTokenHandler(w http.ResponseWriter, r 
 		return
 	}
 	// The user is found. Does their password match?
-	match, err := user.Password.Matches(incomingData.Password)
+	// match, err := user.Password.Matches(incomingData.Password)
 
 	if err != nil {
 		a.serverErrorResponse(w, r, err)
@@ -56,23 +56,23 @@ func (a *application) createAuthenticationTokenHandler(w http.ResponseWriter, r 
 
 	// Wrong password
 	// We will define invalidCredentialsResponse() later
-	if !match {
-		a.invalidCredentialsResponse(w, r)
-		return
-	}
-	token, err := a.tokenModel.New(user.ID, 24*time.Hour, data.ScopeAuthentication)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
-		return
-	}
+	// if !match {
+	// 	a.invalidCredentialsResponse(w, r)
+	// 	return
+	// }
+	// token, err := a.tokenModel.New(user.ID, 24*time.Hour, data.ScopeAuthentication)
+	// if err != nil {
+	// 	a.serverErrorResponse(w, r, err)
+	// 	return
+	// }
 
-	data := envelope{
-		"authentication_token": token,
-	}
+	// data := envelope{
+	// 	"authentication_token": token,
+	// }
 
-	// Return the bearer token
-	err = a.writeJSON(w, http.StatusCreated, data, nil)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
-	}
+	// // Return the bearer token
+	// err = a.writeJSON(w, http.StatusCreated, data, nil)
+	// if err != nil {
+	// 	a.serverErrorResponse(w, r, err)
+	// }
 }
