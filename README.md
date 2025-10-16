@@ -1,13 +1,13 @@
-# 🛡️ National In-Service Training Database API
+# National In-Service Training Database API
 
 The **National In-Service Training Database** is a RESTful API designed for the **Belize Police Department** to manage officer training data, monitor participation, generate reports, and analyze training trends.  
 This system supports role-based access, comprehensive reporting, and analytics to ensure officers meet national training requirements(to be impemented).
 
 ---
 
-## 🛠️ Features
+## Features
 
-### 👤 Account Privilege
+### Account Privilege
 **Administrator**
 Full access to add, edit, and manage users, training data, and reports.
 **Content Contributor**
@@ -17,7 +17,7 @@ Access and download personal or unit training reports.
 
 ---
 
-## 📊 Data Analysis Functions
+## Data Analysis Functions
 
 - Calculate **total officers trained** and **percentage trained** by:
   - Day, week, month, quarter, mid-year, or annually  
@@ -29,7 +29,7 @@ Access and download personal or unit training reports.
 
 ---
 
-## 🛠️ Endpoints
+## Endpoints
 
 Method	Endpoint
 Get     /v1/healthcheck             Confirm that your application and its dependencies are running properly
@@ -42,7 +42,7 @@ GET     /v1/reports/officers	    View officers’ training status and compliance
 GET     /v1/reports/unit	        Regional/unit training summaries
 GET     /v1/reports/cards/:id	    Individual officer transcripts
 
-## 🧾 Report Capabilities
+## Report Capabilities
 
 - Daily, Weekly, Monthly, Quarterly, and Yearly Reports  
 - Individual **Report Cards/Transcripts**  
@@ -50,7 +50,7 @@ GET     /v1/reports/cards/:id	    Individual officer transcripts
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Language:** Golang 
 - **Database:** PostgreSQL  
@@ -58,7 +58,7 @@ GET     /v1/reports/cards/:id	    Individual officer transcripts
 - **API Framework:** `net/http` or `httprouter`  
 ---
 
-## ⚙️ Setup Instructions
+## Setup Instructions
 
 ### 1. Clone the Repository
 ```bash
