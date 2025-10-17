@@ -19,6 +19,7 @@ func (app *application) routes() http.Handler {
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
 	// setup routes
+
     // router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
 
     // Users
@@ -81,6 +82,6 @@ func (app *application) routes() http.Handler {
     // Checks
     // router.Handler(http.MethodGet, "/v1/observability/quotes/metrics", expvar.Handler())
 
-	// return app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router))))
+
 	return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router)))))
 }
