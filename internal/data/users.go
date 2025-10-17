@@ -19,15 +19,14 @@ var AnonymousUser = &User{}
 type User struct {
 	ID               int64     `json:"id"`
 	RegulationNumber string    `json:"regulation_number"`
-	FName            string    `json:"fname"`
 	Username         string    `json:"username"`
+	FName            string    `json:"fname"`
 	LName            string    `json:"lname"`
 	Email            string    `json:"email"`
 	Gender           string    `json:"gender"`
-	Role             string    `json:"role"`
-	Formation        string    `json:"formation"`
-	Rank             string    `json:"rank"`
-	Postings         string    `json:"postings"`
+	Formation        int       `json:"formation"`
+	Rank             int       `json:"rank"`
+	Postings         int       `json:"postings"`
 	Password         password  `json:"-"`
 	Activated        bool      `json:"activated"`
 	Version          int       `json:"-"`
@@ -102,12 +101,12 @@ func ValidateUser(v *validator.Validator, user User) {
 // Inserty a new user into the db
 func (u UserModel) Insert(user *User) error {
 	query := `
-			INSERT INTO users (username, email, password_hash, activated)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO users (regulation_number, username, fname, lname, email, password_hash, activated, gender, formation_id, rank_id, posting_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 			RETURNING id, created_at, version
 			`
 
-	args := []any{user.Username, user.Email, user.Password.hash, user.Activated}
+	args := []any{user.RegulationNumber, user.Username, user.FName, user.LName, user.Email, user.Password.hash, user.Activated, user.Gender, user.Formation, user.Rank, user.Postings}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -127,10 +126,11 @@ func (u UserModel) Insert(user *User) error {
 	return nil
 }
 
-// Get a user from the db based on their emial provided
+// Get a user from the db based on their email provided
 func (u UserModel) GetByEmail(email string) (*User, error) {
 	query := `
-			SELECT id, created_at, username, email, password_hash, activated, version 
+			SELECT id, regulation_number, username, fname, lname, email, password_hash,
+		       activated, gender, formation_id, rank_id, posting_id, version, created_at
 			FROM users
 			WHERE email = $1
 			`
@@ -142,12 +142,19 @@ func (u UserModel) GetByEmail(email string) (*User, error) {
 
 	err := u.DB.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
-		&user.CreatedAt,
+		&user.RegulationNumber,
 		&user.Username,
+		&user.FName,
+		&user.LName,
 		&user.Email,
 		&user.Password.hash,
 		&user.Activated,
+		&user.Gender,
+		&user.Formation,
+		&user.Rank,
+		&user.Postings,
 		&user.Version,
+		&user.CreatedAt,
 	)
 
 	if err != nil {
@@ -166,17 +173,24 @@ func (u UserModel) GetByEmail(email string) (*User, error) {
 func (u UserModel) Update(user *User) error {
 	query := `
 		UPDATE users
-		SET username = $1, email = $2, password_hash = $3, activated = $4, version = version + 1 
-		WHERE id = $5 AND version = $6
+		SET regulation_number = $1, username = $2, fname = $3, lname = $4, email = $5, password_hash = $6, activated = $7, gender = $8, formation_id = $9, rank_id = $10, posting_id = $11, version = version + 1 
+		WHERE id = $12 AND version = $13
 		RETURNING version
 		`
 	args := []any{
-		user.Username,
-		user.Email,
-		user.Password.hash,
-		user.Activated,
-		user.ID,
-		user.Version,
+		&user.RegulationNumber,
+		&user.Username,
+		&user.FName,
+		&user.LName,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Gender,
+		&user.Formation,
+		&user.Rank,
+		&user.Postings,
+		&user.ID,
+		&user.Version,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -241,4 +255,18 @@ func (u UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 // Let's check if the current user is anonymous
 func (u *User) IsAnonymous() bool {
 	return u == AnonymousUser
+}
+
+// Activatng the user
+func (u UserModel) Activate(user *User) error {
+	query := `
+        UPDATE users
+        SET activated = true, version = version + 1
+        WHERE id = $1 AND version = $2
+        RETURNING version
+    `
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	return u.DB.QueryRowContext(ctx, query, user.ID, user.Version).Scan(&user.Version)
 }

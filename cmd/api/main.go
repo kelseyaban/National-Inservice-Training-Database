@@ -54,7 +54,7 @@ type application struct {
 	config configuration
 	logger *slog.Logger
 	// quoteModel      data.QuoteModel
-	// userModel       data.UserModel
+	userModel       data.UserModel
 	mailer          mailer.Mailer
 	wg              sync.WaitGroup
 	tokenModel      data.TokenModel
@@ -181,7 +181,7 @@ func main() {
 		config: cfg,
 		logger: logger,
 		// quoteModel: data.QuoteModel{DB: db},
-		// userModel: data.UserModel{DB: db},
+		userModel: data.UserModel{DB: db},
 		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port,
 			cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 		tokenModel:      data.TokenModel{DB: db},

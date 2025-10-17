@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kelseyaban/National-Inservice-Training-Databaseinternal/data"
+	"github.com/kelseyaban/National-Inservice-Training-Database/internal/data"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
 )
 
@@ -14,9 +14,16 @@ func (app *application) registerUserHandler(w http.ResponseWriter,
 	r *http.Request) {
 	// Get the passed in data from the request body and store in a temporary struct
 	var incomingData struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		RegulationNumber string `json:"regulation_number"`
+		Username         string `json:"username"`
+		FName            string `json:"fname"`
+		LName            string `json:"lname"`
+		Email            string `json:"email"`
+		Gender           string `json:"gender"`
+		Formation        int    `json:"formation"`
+		Rank             int    `json:"rank"`
+		Postings         int    `json:"postings"`
+		Password         string `json:"password"`
 	}
 
 	err := app.readJSON(w, r, &incomingData)
@@ -27,9 +34,16 @@ func (app *application) registerUserHandler(w http.ResponseWriter,
 
 	// we will add the password later after we have hashed it
 	user := &data.User{
-		Username:  incomingData.Username,
-		Email:     incomingData.Email,
-		Activated: false,
+		RegulationNumber: incomingData.RegulationNumber,
+		Username:         incomingData.Username,
+		FName:            incomingData.FName,
+		LName:            incomingData.LName,
+		Email:            incomingData.Email,
+		Gender:           incomingData.Gender,
+		Formation:        incomingData.Formation,
+		Rank:             incomingData.Rank,
+		Postings:         incomingData.Postings,
+		Activated:        false,
 	}
 
 	// hash the password and store it along with the cleartext version
@@ -61,7 +75,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter,
 	}
 
 	// Add the read permission for new users
-	err = app.permissionModel.AddForUser(user.ID, "quotes:read")
+	err = app.permissionModel.AddForUser(user.ID, "session:read")
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -118,7 +132,6 @@ func (a *application) activateUserHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	// Let's check if the token provided belongs to the user
-	// We will implement the GetForToken() method later
 	user, err := a.userModel.GetForToken(data.ScopeActivation,
 		incomingData.TokenPlaintext)
 	if err != nil {
@@ -132,8 +145,7 @@ func (a *application) activateUserHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user.Activated = true
-	err = a.userModel.Update(user)
+	err = a.userModel.Activate(user)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrEditConflict):
@@ -141,6 +153,13 @@ func (a *application) activateUserHandler(w http.ResponseWriter, r *http.Request
 		default:
 			a.serverErrorResponse(w, r, err)
 		}
+		return
+	}
+
+	// Re-fetch the full user from the database so all fields are populated
+	user, err = a.userModel.GetByEmail(user.Email)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
 		return
 	}
 
