@@ -24,3 +24,27 @@ db/migrations/new:
 db/migrations/up:
 	@echo 'Running up migrations...'
 	migrate -path ./migrations -database ${TRAINING_DB_DSN} up
+
+
+## db/migrations/fix: automatically fix dirty migrations
+.PHONY: db/migrations/fix
+db/migrations/fix:
+	@echo 'Checking migration status...'
+	@mkdir -p /tmp
+	@{ \
+        migrate -path ./migrations -database "${TRAINING_DB_DSN}" version > /tmp/migrate_version 2>&1; \
+        cat /tmp/migrate_version; \
+        if grep -q "dirty" /tmp/migrate_version; then \
+            version=$$(grep -o '[0-9]\+' /tmp/migrate_version | head -1); \
+            echo "⚠️ Found dirty migration at version $$version"; \
+            echo "Forcing version $$version..."; \
+            migrate -path ./migrations -database "${TRAINING_DB_DSN}" force $$version; \
+            echo "Running down migration..."; \
+            migrate -path ./migrations -database "${TRAINING_DB_DSN}" down 1; \
+            echo "Running up migration..."; \
+            migrate -path ./migrations -database "${TRAINING_DB_DSN}" up 1; \
+        else \
+            echo "✅ No dirty migration found"; \
+        fi; \
+        rm -f /tmp/migrate_version; \
+    }

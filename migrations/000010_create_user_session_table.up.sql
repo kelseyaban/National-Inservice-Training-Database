@@ -1,6 +1,5 @@
-CREATE TABLE IF NOT EXISTS trainee_session_enrollment (
+CREATE TABLE IF NOT EXISTS user_session (
   id bigserial PRIMARY KEY,
-  trainee_id bigint NOT NULL REFERENCES trainee(id) ON DELETE CASCADE,
   session_id bigint NOT NULL REFERENCES session(id) ON DELETE CASCADE,
   credithours_completed int NOT NULL DEFAULT 0,
   grade text,
