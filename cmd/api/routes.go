@@ -40,6 +40,12 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodDelete, "/v1/users/delete-role/:id", app.deleteUserRoleHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/users/user_roles", app.listUsersWithRolesHandler)
 
+	//Facilitator Rating
+	router.HandlerFunc(http.MethodPost, "/v1/facilitator-rating", app.addFacilitatorRating)
+	router.HandlerFunc(http.MethodGet, "/v1/facilitator-rating/:id", app.displayFacilitatorRatingHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/facilitator-rating", app.listFacilitatorRatingHandler)
+
+
 	// Courses
 	// Permission structure: router.HandlerFunc(http.MethodGet, "/v1/quotes/:id", app.requirePermission("quotes:read", app.displayQuoteHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/courses", app.createCourseHandler)
@@ -47,6 +53,8 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPatch, "/v1/courses/:id", app.updateCourseHandler)
 	router.HandlerFunc(http.MethodDelete, "/v1/courses/:id", app.deleteCourseHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/courses", app.listCoursesHandler)
+
+
 
 	// return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router)))))
 	return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(router))))
