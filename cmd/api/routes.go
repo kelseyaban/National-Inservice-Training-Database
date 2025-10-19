@@ -48,6 +48,13 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodDelete, "/v1/courses/:id", app.deleteCourseHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/courses", app.listCoursesHandler)
 
+	// Course Postings
+	router.HandlerFunc(http.MethodPost, "/v1/course/postings", app.createCoursePostingHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/course/postings/:id", app.displayCoursePostingHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/course/postings/:id", app.updateCoursePostingHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/course/postings/:id", app.deleteCoursePostingHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/course/postings", app.listCoursePostingsHandler)
+
 	// return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router)))))
 	return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(router))))
 }

@@ -54,13 +54,14 @@ type application struct {
 	config configuration
 	logger *slog.Logger
 	// quoteModel      data.QuoteModel
-	userModel       data.UserModel
-	courseModel     data.CourseModel
-	mailer          mailer.Mailer
-	wg              sync.WaitGroup
-	tokenModel      data.TokenModel
-	permissionModel data.PermissionModel
-	roleModel       data.RoleModel
+	userModel          data.UserModel
+	courseModel        data.CourseModel
+	mailer             mailer.Mailer
+	wg                 sync.WaitGroup
+	tokenModel         data.TokenModel
+	permissionModel    data.PermissionModel
+	roleModel          data.RoleModel
+	coursepostingModel data.CoursePostingModel
 }
 
 // loadConfig reads configuration from command line flags
@@ -187,9 +188,10 @@ func main() {
 		courseModel: data.CourseModel{DB: db},
 		mailer: mailer.New(cfg.smtp.host, cfg.smtp.port,
 			cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
-		tokenModel:      data.TokenModel{DB: db},
-		permissionModel: data.PermissionModel{DB: db},
-		roleModel:       data.RoleModel{DB: db},
+		tokenModel:         data.TokenModel{DB: db},
+		permissionModel:    data.PermissionModel{DB: db},
+		roleModel:          data.RoleModel{DB: db},
+		coursepostingModel: data.CoursePostingModel{DB: db},
 	}
 
 	// Run the application

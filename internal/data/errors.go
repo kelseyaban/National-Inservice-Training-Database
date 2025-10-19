@@ -11,3 +11,4 @@ var ErrEditConflict = errors.New("edit Conflict")
 
 var ErrCourseNotFound = errors.New("course not found")
 var ErrPostingNotFound = errors.New("posting not found")
+var ErrRankNotFound = errors.New("rank not found")
