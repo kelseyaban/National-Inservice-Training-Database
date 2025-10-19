@@ -94,3 +94,9 @@ func (a *application) notPermittedResponse(w http.ResponseWriter, r *http.Reques
 
 	a.errorResponseJSON(w, r, http.StatusForbidden, message)
 }
+
+// duplicateRoleResponse returns a 409 Conflict if a user already has that role.
+func (a *application) duplicateRoleResponse(w http.ResponseWriter, r *http.Request, roleName string) {
+    message := fmt.Sprintf("User has already been assigned the '%s' role", roleName)
+    a.errorResponseJSON(w, r, http.StatusConflict, message)
+}
