@@ -51,3 +51,8 @@ func PermittedValue(value string, permittedValues ...string) bool {
 func Matches(value string, rx *regexp.Regexp) bool {
 	return rx.MatchString(value)
 }
+
+// Valid returns true if there are no validation errors.
+func (v *Validator) Valid() bool {
+	return len(v.Errors) == 0
+}
