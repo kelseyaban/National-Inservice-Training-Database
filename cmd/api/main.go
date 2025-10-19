@@ -60,6 +60,7 @@ type application struct {
 	wg              sync.WaitGroup
 	tokenModel      data.TokenModel
 	permissionModel data.PermissionModel
+	roleModel       data.RoleModel
 }
 
 // loadConfig reads configuration from command line flags
@@ -188,6 +189,7 @@ func main() {
 			cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 		tokenModel:      data.TokenModel{DB: db},
 		permissionModel: data.PermissionModel{DB: db},
+		roleModel:       data.RoleModel{DB: db},
 	}
 
 	// Run the application

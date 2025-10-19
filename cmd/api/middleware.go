@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
+	"encoding/json"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/data"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
 	"golang.org/x/time/rate"
@@ -322,4 +322,44 @@ func (mw *metricsResponseWriter) Write(b []byte) (int, error) {
 // We need a function to get the original http.ResponseWriter
 func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
 	return mw.wrapped
+}
+
+func (a *application) assignRoleHandler(w http.ResponseWriter, r *http.Request) {
+    var input struct {
+        UserID  int   `json:"user_id"`
+        RoleIDs []int `json:"role_ids"` // multiple roles
+    }
+
+    err := json.NewDecoder(r.Body).Decode(&input)
+    if err != nil {
+        a.badRequestResponse(w, r, err)
+        return
+    }
+
+    if len(input.RoleIDs) == 0 {
+        a.badRequestResponse(w, r, fmt.Errorf("no roles provided"))
+        return
+    }
+
+    // Check for duplicates
+    for _, roleID := range input.RoleIDs {
+        exists, roleName, err := a.roleModel.Exists(input.UserID, roleID)
+        if err != nil {
+            a.serverErrorResponse(w, r, err)
+            return
+        }
+        if exists {
+            a.duplicateRoleResponse(w, r, roleName)
+            return
+        }
+    }
+
+    // Assign roles (all at once)
+    err = a.roleModel.AddForUserRole(int64(input.UserID), input.RoleIDs...)
+    if err != nil {
+        a.serverErrorResponse(w, r, err)
+        return
+    }
+
+    a.writeJSON(w, http.StatusCreated, envelope{"message": "roles assigned successfully"}, nil)
 }

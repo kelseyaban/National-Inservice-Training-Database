@@ -26,6 +26,20 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationTokenHandler)
 
+	// Roles
+	router.HandlerFunc(http.MethodPost, "/v1/roles", app.createRoleHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/roles/:id", app.displayRoleHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/roles/:id", app.updateRoleHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/roles/:id", app.deleteRoleHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/roles", app.listRoleHandler)
+
+	//User Roles
+	router.HandlerFunc(http.MethodPost, "/v1/users/assign-role", app.assignRoleHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/users/user_roles/:id", app.getUserRolesHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/users/update-role/:id", app.updateUserRoleHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/users/delete-role/:id", app.deleteUserRoleHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/users/user_roles", app.listUsersWithRolesHandler)
+
 	// Courses
 	// Permission structure: router.HandlerFunc(http.MethodGet, "/v1/quotes/:id", app.requirePermission("quotes:read", app.displayQuoteHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/courses", app.createCourseHandler)
