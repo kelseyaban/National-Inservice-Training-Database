@@ -199,3 +199,64 @@ func (c CourseModel) GetAll(course string, description string, filters Filters) 
 
 	return courses, metadata, nil
 }
+
+// ------------------------------------------------- Handling course_posting -------------------------------------------------
+// Does the course Exists
+func (c CourseModel) CourseExists(id int64) (bool, error) {
+	var exists bool
+	query := "SELECT EXISTS(SELECT 1 FROM courses WHERE id = $1)"
+	err := c.DB.QueryRow(query, id).Scan(&exists)
+	return exists, err
+}
+
+func (p CourseModel) PostingExists(id int64) (bool, error) {
+	var exists bool
+	query := "SELECT EXISTS(SELECT 1 FROM postings WHERE id = $1)"
+	err := p.DB.QueryRow(query, id).Scan(&exists)
+	return exists, err
+}
+
+// func(c CourseModel) InsertCoursePosting(courseID int64, postingID int64, mandatory bool, credithours int64) error {
+// 	// Check if course exists
+// 	courseExists, err := c.CourseExists(courseID)
+
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if !courseExists {
+// 		return ErrCourseNotFound
+// 	}
+
+// 	// Check if posting exists
+// 	postingExists, err := c.PostingExists(postingID)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if !postingExists {
+// 		return ErrPostingNotFound
+// 	}
+
+// 	// Insert into course_postings table
+// 	query := `
+// 		INSERT INTO course_postings (course_id, posting_id, mandatory, credithours)
+// 		VALUES ($1, $2, $3, $4)
+// 		RETURNING id, created_at
+// 		`
+
+// 	var id int64
+// 	var createAt time.Time
+
+// 	args:= []any{courseID, postingID, mandatory, credithours}
+// 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+// 	defer cancel()
+
+// 	err = c.DB.Exec(query, courseID, args...).Scan(&id, &createAt)
+
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	return err
+// }
+
+// Get course_posting by ID
