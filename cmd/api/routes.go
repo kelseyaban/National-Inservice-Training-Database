@@ -54,11 +54,11 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/v1/courses", app.listCoursesHandler)
 
 	// Course Postings
-	router.HandlerFunc(http.MethodPost, "/v1/course/postings", app.createCoursePostingHandler)
-	router.HandlerFunc(http.MethodGet, "/v1/course/postings/:id", app.displayCoursePostingHandler)
-	router.HandlerFunc(http.MethodPatch, "/v1/course/postings/:id", app.updateCoursePostingHandler)
-	router.HandlerFunc(http.MethodDelete, "/v1/course/postings/:id", app.deleteCoursePostingHandler)
-	router.HandlerFunc(http.MethodGet, "/v1/course/postings", app.listCoursePostingsHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/course/posting", app.createCoursePostingHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/course/posting/:id", app.displayCoursePostingHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/course/posting/:id", app.updateCoursePostingHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/course/posting/:id", app.deleteCoursePostingHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/course/posting", app.listCoursePostingsHandler)
 
 	//Sessions
 	router.HandlerFunc(http.MethodPost, "/v1/session", app.createSessionHandler)
