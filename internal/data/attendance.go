@@ -59,7 +59,7 @@ func (a AttendanceModel) GetIdividualAttendance(id int64) (*Attendance, error) {
 	query := `
 		SELECT id, user_session_id, attendance, date, created_at
 		FROM attendance
-		WHERE user_session_id = $1`
+		WHERE id = $1`
 
 	var attendance Attendance
 

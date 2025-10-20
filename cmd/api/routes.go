@@ -77,7 +77,7 @@ func (app *application) routes() http.Handler {
 	// Attendance
 	router.HandlerFunc(http.MethodPost, "/v1/attendance", app.createAttendanceHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/attendance/:id", app.displayIndividualAttendanceHandler)
-	router.HandlerFunc(http.MethodPatch, "/v1/attendance:id", app.updateAttendanceHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/attendance/:id", app.updateAttendanceHandler)
 
 	// return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router)))))
 	return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(router))))
