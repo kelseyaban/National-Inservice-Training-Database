@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
+	"errors"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/data"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
 	"golang.org/x/time/rate"
@@ -133,12 +133,12 @@ func (a *application) authenticate(next http.Handler) http.Handler {
 		// Bearer token
 		authorizationHeader := r.Header.Get("Authorization")
 
-		// // If there is no Authorization header then we have an Anonymous user
-		// if authorizationHeader == "" {
-		// 	r = a.contextSetUser(r, data.AnonymousUser)
-		// 	next.ServeHTTP(w, r)
-		// 	return
-		// }
+		// If there is no Authorization header then we have an Anonymous user
+		if authorizationHeader == "" {
+			r = a.contextSetUser(r, data.AnonymousUser)
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		// Bearer token present so parse it. The Bearer token is in the form
 		headerParts := strings.Split(authorizationHeader, " ")
@@ -158,22 +158,22 @@ func (a *application) authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		// Get the user info associated with this authentication token
-		// user, err := a.userModel.GetForToken(data.ScopeAuthentication, token)
-		// if err != nil {
-		// 	switch {
-		// 	case errors.Is(err, data.ErrRecordNotFound):
-		// 		a.invalidAuthenticationTokenResponse(w, r)
-		// 	default:
-		// 		a.serverErrorResponse(w, r, err)
-		// 	}
-		// 	return
-		// }
+		//Get the user info associated with this authentication token
+		user, err := a.userModel.GetForToken(data.ScopeAuthentication, token)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				a.invalidAuthenticationTokenResponse(w, r)
+			default:
+				a.serverErrorResponse(w, r, err)
+			}
+			return
+		}
 
-		// Add the retrieved user info to the context
-		// r = a.contextSetUser(r, user)
+		//Add the retrieved user info to the context
+		r = a.contextSetUser(r, user)
 
-		// Call the next handler in the chain.
+		//Call the next handler in the chain.
 		next.ServeHTTP(w, r)
 	})
 }
