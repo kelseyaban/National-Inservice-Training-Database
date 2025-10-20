@@ -67,6 +67,13 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodDelete, "/v1/session/:id", app.deleteSessionHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/session", app.listSessionHandler)
 
+	//User Session
+	router.HandlerFunc(http.MethodPost, "/v1/user_session", app.createUserSessionHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/user_session/:id", app.getUserSessionHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/user_session/:id", app.updateUserSessionHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/user_session/:id", app.deleteUserSessionHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/user_session", app.listUserSessionHandler)
+
 	// Attendance
 	router.HandlerFunc(http.MethodPost, "/v1/attendance", app.createAttendanceHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/attendance/:id", app.displayIndividualAttendanceHandler)
