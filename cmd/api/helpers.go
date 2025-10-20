@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
@@ -161,4 +162,14 @@ func (a *application) background(fn func()) {
 		}()
 		fn() // Run the actual function
 	}()
+}
+
+// parseDate converts a date string in "YYYY-MM-DD" format to a time.Time object
+func parseDate(dateStr string) (date time.Time) {
+	const layout = "2006-01-02"
+	date, err := time.Parse(layout, dateStr)
+	if err != nil {
+		return time.Time{}
+	}
+	return date
 }
