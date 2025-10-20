@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
@@ -83,8 +84,24 @@ func ValidatePasswordPlaintext(v *validator.Validator, password string) {
 
 // Validate a user
 func ValidateUser(v *validator.Validator, user User) {
+	v.Check(user.RegulationNumber != "", "regulation_number", "must be provided")
+	v.Check(len(user.RegulationNumber) <= 100, "regulation_number", "must not be more than 100 bytes long")
+
 	v.Check(user.Username != "", "username", "must be provided")
 	v.Check(len(user.Username) <= 200, "username", "must not be more than 200 bytes long")
+
+	v.Check(user.FName != "", "fname", "must be provided")
+	v.Check(len(user.FName) <= 200, "fname", "must not be more than 200 bytes long")
+
+	v.Check(user.LName != "", "lname", "must be provided")
+	v.Check(len(user.LName) <= 200, "lname", "must not be more than 200 bytes long")
+
+	v.Check(user.Formation >= 0, "formation", "must be a valid formation id")
+	v.Check(user.Rank >= 0, "rank", "must be a valid rank id")
+	v.Check(user.Postings >= 0, "postings", "must be a valid posting id")
+
+	// Optional: simple gender presence check (adjust allowed values as needed)
+	v.Check(user.Gender != "", "gender", "must be provided")
 
 	// validate email for user
 	ValidateEmail(v, user.Email)
@@ -269,4 +286,197 @@ func (u UserModel) Activate(user *User) error {
 	defer cancel()
 
 	return u.DB.QueryRowContext(ctx, query, user.ID, user.Version).Scan(&user.Version)
+}
+
+// Get all users from the database
+func (u UserModel) GetAll(id int64, regNumber, username, fname, lname, email, gender string, formation, rank, postings int, filters Filters) ([]*User, Metadata, error) {
+	// Build query using these parameters
+	query := fmt.Sprintf(`
+        SELECT COUNT(*) OVER(), id, regulation_number, username, fname, lname, email, 
+               gender, formation_id, rank_id, posting_id
+        FROM users
+        WHERE (to_tsvector('simple', username) @@ plainto_tsquery('simple', $1) OR $1 = '')
+        ORDER BY %s %s, id ASC
+        LIMIT $2 OFFSET $3`,
+		filters.sortColumn(), filters.sortDirection())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Use username for $1, then page size and offset
+	rows, err := u.DB.QueryContext(ctx, query, username, filters.PageSize, (filters.Page-1)*filters.PageSize)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	totalRecords := 0
+	users := []*User{}
+
+	for rows.Next() {
+		var user User
+		err := rows.Scan(
+			&totalRecords,
+			&user.ID,
+			&user.RegulationNumber,
+			&user.Username,
+			&user.FName,
+			&user.LName,
+			&user.Email,
+			&user.Gender,
+			&user.Formation,
+			&user.Rank,
+			&user.Postings,
+		)
+		if err != nil {
+			return nil, Metadata{}, err
+		}
+		users = append(users, &user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+	return users, metadata, nil
+}
+
+// Update User Information
+func (u UserModel) UpdateUser(user *User) error {
+	query := `
+		UPDATE users
+		SET regulation_number = $1, username = $2, fname = $3, lname = $4, email = $5, gender = $6, formation_id = $7, rank_id = $8, posting_id = $9, version = version + 1 
+		WHERE id = $10 AND version = $11
+		RETURNING version
+		`
+	args := []any{
+		&user.RegulationNumber,
+		&user.Username,
+		&user.FName,
+		&user.LName,
+		&user.Email,
+		&user.Gender,
+		&user.Formation,
+		&user.Rank,
+		&user.Postings,
+		&user.ID,
+		&user.Version,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	return u.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.RegulationNumber, &user.Username, &user.FName, &user.LName, &user.Email, &user.Gender, &user.Formation, &user.Rank, &user.Postings)
+
+}
+
+// Delete user
+func (u UserModel) Delete(id int64) error {
+
+	// Check
+	if id < 1 {
+		return ErrRecordNotFound
+	}
+
+	// the SQL query to be executed
+	query := `
+		DELETE FROM users
+		WHERE id = $1
+		`
+
+	// Context with a 3-second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// execute query against the database
+	result, err := u.DB.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	// Check how many rows were affected
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// Get by id
+func (u UserModel) GetByID(id int64) (*User, error) {
+	// Check if the id is valid
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT id, regulation_number, username, fname, lname, email, password_hash,
+		       activated, gender, formation_id, rank_id, posting_id, version, created_at
+		FROM users
+		WHERE id = $1
+		`
+
+	var user User
+
+	// Context with a 3-second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := u.DB.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.RegulationNumber,
+		&user.Username,
+		&user.FName,
+		&user.LName,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Gender,
+		&user.Formation,
+		&user.Rank,
+		&user.Postings,
+		&user.Version,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+	return &user, nil
+}
+
+// UpdatePassword updates the user's password hash in the database.
+func (u UserModel) UpdatePassword(id int64, newPassword string) error {
+	// Hash the new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Update query
+	query := `
+		UPDATE users
+		SET password_hash = $1, version = version + 1
+		WHERE id = $2
+		RETURNING id
+	`
+
+	// Execute the update
+	var returnedID int64
+	err = u.DB.QueryRow(query, hashedPassword, id).Scan(&returnedID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

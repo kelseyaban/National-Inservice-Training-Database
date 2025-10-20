@@ -25,6 +25,10 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationTokenHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/users/update/:id", app.updateUserHandler)
+	router.HandlerFunc(http.MethodGet, "/v1/users/details", app.listUsersHandler)
+	router.HandlerFunc(http.MethodDelete, "/v1/users/delete/:id", app.deleteUserHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/users/update-password/:id", app.updatePasswordHandler)
 
 	// Roles
 	router.HandlerFunc(http.MethodPost, "/v1/roles", app.createRoleHandler)
@@ -77,7 +81,7 @@ func (app *application) routes() http.Handler {
 	// Attendance
 	router.HandlerFunc(http.MethodPost, "/v1/attendance", app.createAttendanceHandler)
 	router.HandlerFunc(http.MethodGet, "/v1/attendance/:id", app.displayIndividualAttendanceHandler)
-	router.HandlerFunc(http.MethodPatch, "/v1/attendance:id", app.updateAttendanceHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/attendance/:id", app.updateAttendanceHandler)
 
 	// return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router)))))
 	return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(router))))
