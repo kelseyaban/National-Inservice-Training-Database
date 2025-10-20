@@ -17,7 +17,76 @@ Access and download personal or unit training reports.
 
 ---
 
-## Data Analysis Functions
+## Endpoints
+
+### Healthcheck
+- **GET** `/v1/healthcheck` – Check API status
+
+### Users
+- **POST** `/v1/users` – Register user  
+- **PUT** `/v1/users/activated` – Activate user  
+- **POST** `/v1/tokens/authentication` – User login/authentication  
+- **PATCH** `/v1/users/update/:id` – Update user info  
+- **GET** `/v1/users/details` – List users  
+- **DELETE** `/v1/users/delete/:id` – Delete user  
+- **PATCH** `/v1/users/update-password/:id` – Update password  
+
+### Roles
+- **POST** `/v1/roles` – Create role  
+- **GET** `/v1/roles/:id` – View role  
+- **PATCH** `/v1/roles/:id` – Update role  
+- **DELETE** `/v1/roles/:id` – Delete role  
+- **GET** `/v1/roles` – List roles  
+
+### User Roles
+- **POST** `/v1/users/assign-role` – Assign role to user  
+- **GET** `/v1/users/user_roles/:id` – View user roles  
+- **PATCH** `/v1/users/update-role/:id` – Update user role  
+- **DELETE** `/v1/users/delete-role/:id` – Remove user role  
+- **GET** `/v1/users/user_roles` – List all user-role mappings  
+
+### Facilitator Ratings
+- **POST** `/v1/facilitator-rating` – Add rating  
+- **GET** `/v1/facilitator-rating/:id` – View rating  
+- **GET** `/v1/facilitator-rating` – List ratings  
+
+### Courses
+- **POST** `/v1/courses` – Create course  
+- **GET** `/v1/courses/:id` – View course  
+- **PATCH** `/v1/courses/:id` – Update course  
+- **DELETE** `/v1/courses/:id` – Delete course  
+- **GET** `/v1/courses` – List courses  
+
+### Course Postings
+- **POST** `/v1/course/posting` – Create posting  
+- **GET** `/v1/course/posting/:id` – View posting  
+- **PATCH** `/v1/course/posting/:id` – Update posting  
+- **DELETE** `/v1/course/posting/:id` – Delete posting  
+- **GET** `/v1/course/posting` – List postings  
+
+### Sessions
+- **POST** `/v1/session` – Create session  
+- **GET** `/v1/session/:id` – View session  
+- **PATCH** `/v1/session/:id` – Update session  
+- **DELETE** `/v1/session/:id` – Delete session  
+- **GET** `/v1/session` – List sessions  
+
+### User Sessions
+- **POST** `/v1/user_session` – Create user session  
+- **GET** `/v1/user_session/:id` – View user session  
+- **PATCH** `/v1/user_session/:id` – Update user session  
+- **DELETE** `/v1/user_session/:id` – Delete user session  
+- **GET** `/v1/user_session` – List user sessions  
+
+### Attendance
+- **POST** `/v1/attendance` – Create attendance record  
+- **GET** `/v1/attendance/:id` – View individual attendance  
+- **PATCH** `/v1/attendance/:id` – Update attendance
+
+
+## Future Updates
+
+### Data Analysis Functions
 
 - Calculate **total officers trained** and **percentage trained** by:
   - Day, week, month, quarter, mid-year, or annually  
@@ -29,20 +98,7 @@ Access and download personal or unit training reports.
 
 ---
 
-## Endpoints
-
-Method	Endpoint
-Get     /v1/healthcheck             Confirm that your application and its dependencies are running properly
-POST	/v1/users	                Register new system users
-POST	/v1/tokens/authentication	Authenticate user login
-POST	/v1/training-courses	    Create a new training course
-GET     /v1/training-courses	    View all courses and participants
-GET     /v1/reports/summary	        Generate analytical reports (daily,monthly etc.)
-GET     /v1/reports/officers	    View officers’ training status and compliance
-GET     /v1/reports/unit	        Regional/unit training summaries
-GET     /v1/reports/cards/:id	    Individual officer transcripts
-
-## Report Capabilities
+### Report Capabilities
 
 - Daily, Weekly, Monthly, Quarterly, and Yearly Reports  
 - Individual **Report Cards/Transcripts**  
@@ -64,3 +120,9 @@ GET     /v1/reports/cards/:id	    Individual officer transcripts
 ```bash
 git clone https://github.com/kelseyaban/National-Inservice-Training-Database.git
 cd National-Inservice-Training-Database
+
+```
+### 2. Creation of Database
+
+## Sample Requests 
+

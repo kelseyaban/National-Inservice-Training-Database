@@ -3,6 +3,7 @@ package main
 
 import (
 	// "errors"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
@@ -11,7 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"encoding/json"
+
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/data"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
 	"golang.org/x/time/rate"
@@ -189,7 +190,7 @@ func (a *application) inactiveAccountResponse(w http.ResponseWriter, r *http.Req
 	a.errorResponseJSON(w, r, http.StatusForbidden, message)
 }
 
-//This middleware checks if the user is authenticated (not anonymous)
+// This middleware checks if the user is authenticated (not anonymous)
 func (a *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -204,20 +205,48 @@ func (a *application) requireAuthenticatedUser(next http.HandlerFunc) http.Handl
 }
 
 
+// This middleware checks if the user is activated
+// It call the authentication middleware to help it do its job
 func (a *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
-    fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-       
-       user := a.contextGetUser(r)
+	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-       if !user.Activated {
-            a.inactiveAccountResponse(w, r)
-            return
-      }
-	  next.ServeHTTP(w, r)
-    })
+		user := a.contextGetUser(r)
 
-   return a.requireAuthenticatedUser(fn)
+		if !user.Activated {
+			a.inactiveAccountResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+	// Only check if the user is activated if they are actually authenticated.
+	return a.requireAuthenticatedUser(fn)
 }
+
+// Checks if the user has the right permissions
+// We send the permission that is expected as an argument
+func (a *application) requirePermission(permissionCode string, next http.HandlerFunc) http.HandlerFunc {
+
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		user := a.contextGetUser(r)
+		// get all the permissions associated with the user
+		permissions, err := a.permissionModel.GetAllForUser(user.ID)
+		if err != nil {
+			a.serverErrorResponse(w, r, err)
+			return
+		}
+		if !permissions.Include(permissionCode) {
+			a.notPermittedResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+
+	return a.requireActivatedUser(fn)
+
+}
+
 // Run for every request received
 func (a *application) metrics(next http.Handler) http.Handler {
 	// Setup our variable to track the metrics
@@ -298,47 +327,47 @@ func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
 }
 
 func (a *application) assignRoleHandler(w http.ResponseWriter, r *http.Request) {
-    var input struct {
-        UserID  int   `json:"user_id"`
-        RoleIDs []int `json:"role_ids"` // multiple roles
-    }
+	var input struct {
+		UserID  int   `json:"user_id"`
+		RoleIDs []int `json:"role_ids"` // multiple roles
+	}
 
-    err := json.NewDecoder(r.Body).Decode(&input)
-    if err != nil {
-        a.badRequestResponse(w, r, err)
-        return
-    }
+	err := json.NewDecoder(r.Body).Decode(&input)
+	if err != nil {
+		a.badRequestResponse(w, r, err)
+		return
+	}
 
-    if len(input.RoleIDs) == 0 {
-        a.badRequestResponse(w, r, fmt.Errorf("no roles provided"))
-        return
-    }
+	if len(input.RoleIDs) == 0 {
+		a.badRequestResponse(w, r, fmt.Errorf("no roles provided"))
+		return
+	}
 
-    // Check for duplicates
-    for _, roleID := range input.RoleIDs {
-        exists, roleName, err := a.roleModel.Exists(input.UserID, roleID)
-        if err != nil {
-            a.serverErrorResponse(w, r, err)
-            return
-        }
-        if exists {
-            a.duplicateRoleResponse(w, r, roleName)
-            return
-        }
-    }
+	// Check for duplicates
+	for _, roleID := range input.RoleIDs {
+		exists, roleName, err := a.roleModel.Exists(input.UserID, roleID)
+		if err != nil {
+			a.serverErrorResponse(w, r, err)
+			return
+		}
+		if exists {
+			a.duplicateRoleResponse(w, r, roleName)
+			return
+		}
+	}
 
-    // Assign roles (all at once)
-    err = a.roleModel.AddForUserRole(int64(input.UserID), input.RoleIDs...)
-    if err != nil {
-        a.serverErrorResponse(w, r, err)
-        return
-    }
+	// Assign roles (all at once)
+	err = a.roleModel.AddForUserRole(int64(input.UserID), input.RoleIDs...)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
+		return
+	}
 
     a.writeJSON(w, http.StatusCreated, envelope{"message": "roles assigned successfully"}, nil)
 }
 
 
-func (a *application) requirePermission(permissionCode string, next http.HandlerFunc) http.HandlerFunc {
+func (a *application) requirePermissions(permissionCode string, next http.HandlerFunc) http.HandlerFunc {
     fn := func(w http.ResponseWriter, r *http.Request) {
         user := a.contextGetUser(r)
 
