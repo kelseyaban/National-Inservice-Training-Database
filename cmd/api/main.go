@@ -63,6 +63,7 @@ type application struct {
 	roleModel              data.RoleModel
 	facilitatorRatingModel data.FacilitatorRatingModel
 	sessionModel           data.SessionModel
+	userSessionModel       data.UserSessionModel
 }
 
 // loadConfig reads configuration from command line flags
@@ -194,6 +195,7 @@ func main() {
 		roleModel:              data.RoleModel{DB: db},
 		facilitatorRatingModel: data.FacilitatorRatingModel{DB: db},
 		sessionModel:           data.SessionModel{DB: db},
+		userSessionModel:       data.UserSessionModel{DB: db},
 	}
 
 	// Run the application

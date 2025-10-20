@@ -21,8 +21,8 @@ type Role struct {
 //function that performs the validation check
 func ValidateRole(v *validator.Validator, role *Role) {
 	//check if the Role field is empty
-	v.Check(role.Role != "", "content", "cannot be left blank")
-	v.Check(len(role.Role) <= 50, "content", "must no be more than 50 bytes long")
+	v.Check(role.Role != "", "role", "cannot be left blank")
+	v.Check(len(role.Role) <= 50, "role", "must no be more than 50 bytes long")
 }
 
 // Setup model
