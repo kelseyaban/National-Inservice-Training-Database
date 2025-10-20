@@ -78,3 +78,21 @@ func (p PermissionModel) AddForUser(userID int64, codes ...string) error {
 
 	return err
 }
+
+
+func (p PermissionModel) HasForUser(userID int64, permissionCode string) (bool, error) {
+    query := `
+        SELECT COUNT(*)
+        FROM users_permissions up
+        INNER JOIN permissions perm ON up.permission_id = perm.id
+        WHERE up.user_id = $1 AND perm.code = $2;
+    `
+
+    var count int
+    err := p.DB.QueryRow(query, userID, permissionCode).Scan(&count)
+    if err != nil {
+        return false, err
+    }
+
+    return count > 0, nil
+}

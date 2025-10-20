@@ -189,62 +189,35 @@ func (a *application) inactiveAccountResponse(w http.ResponseWriter, r *http.Req
 	a.errorResponseJSON(w, r, http.StatusForbidden, message)
 }
 
-// This middleware checks if the user is authenticated (not anonymous)
-// func (a *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
-// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//This middleware checks if the user is authenticated (not anonymous)
+func (a *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-// 		user := a.contextGetUser(r)
+		user := a.contextGetUser(r)
 
-// 		if user.IsAnonymous() {
-// 			a.authenticationRequiredResponse(w, r)
-// 			return
-// 		}
-// 		next.ServeHTTP(w, r)
-// 	})
-// }
+		if user.IsAnonymous() {
+			a.authenticationRequiredResponse(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
-// This middleware checks if the user is activated
-// It call the authentication middleware to help it do its job
-// func (a *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
-// 	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-// 		user := a.contextGetUser(r)
+func (a *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
+    fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+       
+       user := a.contextGetUser(r)
 
-// 		if !user.Activated {
-// 			a.inactiveAccountResponse(w, r)
-// 			return
-// 		}
+       if !user.Activated {
+            a.inactiveAccountResponse(w, r)
+            return
+      }
+	  next.ServeHTTP(w, r)
+    })
 
-// 		next.ServeHTTP(w, r)
-// 	})
-// 	// Only check if the user is activated if they are actually authenticated.
-// 	return a.requireAuthenticatedUser(fn)
-// }
-
-// Checks if the user has the right permissions
-// We send the permission that is expected as an argument
-// func (a *application) requirePermission(permissionCode string, next http.HandlerFunc) http.HandlerFunc {
-
-// 	fn := func(w http.ResponseWriter, r *http.Request) {
-// 		user := a.contextGetUser(r)
-// 		// get all the permissions associated with the user
-// 		permissions, err := a.permissionModel.GetAllForUser(user.ID)
-// 		if err != nil {
-// 			a.serverErrorResponse(w, r, err)
-// 			return
-// 		}
-// 		if !permissions.Include(permissionCode) {
-// 			a.notPermittedResponse(w, r)
-// 			return
-// 		}
-
-// 		next.ServeHTTP(w, r)
-// 	}
-
-// 	return a.requireActivatedUser(fn)
-
-// }
-
+   return a.requireAuthenticatedUser(fn)
+}
 // Run for every request received
 func (a *application) metrics(next http.Handler) http.Handler {
 	// Setup our variable to track the metrics
@@ -362,4 +335,27 @@ func (a *application) assignRoleHandler(w http.ResponseWriter, r *http.Request) 
     }
 
     a.writeJSON(w, http.StatusCreated, envelope{"message": "roles assigned successfully"}, nil)
+}
+
+
+func (a *application) requirePermission(permissionCode string, next http.HandlerFunc) http.HandlerFunc {
+    fn := func(w http.ResponseWriter, r *http.Request) {
+        user := a.contextGetUser(r)
+
+        // Directly check if the user has the permission
+        hasPerm, err := a.permissionModel.HasForUser(user.ID, permissionCode)
+        if err != nil {
+            a.serverErrorResponse(w, r, err)
+            return
+        }
+
+        if !hasPerm {
+            a.notPermittedResponse(w, r)
+            return
+        }
+
+        next.ServeHTTP(w, r)
+    }
+
+    return a.requireActivatedUser(fn)
 }
