@@ -1,9 +1,9 @@
-// Filename: cmd/api/middleware.go
 package main
 
 import (
 	// "errors"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 	"net"
@@ -12,10 +12,18 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"errors"
+
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/data"
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
 	"golang.org/x/time/rate"
+)
+
+// Declare metrics variables at the package level so they are initialized once
+var (
+	totalResponsesSentByStatus      = expvar.NewMap("total_responses_sent_by_status")
+	totalRequestsReceived           = expvar.NewInt("total_requests_received")
+	totalResponsesSent              = expvar.NewInt("total_responses_sent")
+	totalProcessingTimeMicroseconds = expvar.NewInt("total_processing_time_μs")
 )
 
 func (a *application) recoverPanic(next http.Handler) http.Handler {
@@ -204,7 +212,6 @@ func (a *application) requireAuthenticatedUser(next http.HandlerFunc) http.Handl
 	})
 }
 
-
 // This middleware checks if the user is activated
 // It call the authentication middleware to help it do its job
 func (a *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
@@ -249,13 +256,8 @@ func (a *application) requirePermission(permissionCode string, next http.Handler
 
 // Run for every request received
 func (a *application) metrics(next http.Handler) http.Handler {
-	// Setup our variable to track the metrics
-	var (
-		totalResponsesSentByStatus      = expvar.NewMap("total_responses_sent_by_status")
-		totalRequestsReceived           = expvar.NewInt("total_requests_received")
-		totalResponsesSent              = expvar.NewInt("total_responses_sent")
-		totalProcessingTimeMicroseconds = expvar.NewInt("total_processing_time_μs")
-	)
+	// Note: The metric variables are now defined globally and are reused here,
+	// which prevents the expvar panic on subsequent calls.
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// start is when we receive the request and start processing it
@@ -363,28 +365,27 @@ func (a *application) assignRoleHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-    a.writeJSON(w, http.StatusCreated, envelope{"message": "roles assigned successfully"}, nil)
+	a.writeJSON(w, http.StatusCreated, envelope{"message": "roles assigned successfully"}, nil)
 }
 
-
 func (a *application) requirePermissions(permissionCode string, next http.HandlerFunc) http.HandlerFunc {
-    fn := func(w http.ResponseWriter, r *http.Request) {
-        user := a.contextGetUser(r)
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		user := a.contextGetUser(r)
 
-        // Directly check if the user has the permission
-        hasPerm, err := a.permissionModel.HasForUser(user.ID, permissionCode)
-        if err != nil {
-            a.serverErrorResponse(w, r, err)
-            return
-        }
+		// Directly check if the user has the permission
+		hasPerm, err := a.permissionModel.HasForUser(user.ID, permissionCode)
+		if err != nil {
+			a.serverErrorResponse(w, r, err)
+			return
+		}
 
-        if !hasPerm {
-            a.notPermittedResponse(w, r)
-            return
-        }
+		if !hasPerm {
+			a.notPermittedResponse(w, r)
+			return
+		}
 
-        next.ServeHTTP(w, r)
-    }
+		next.ServeHTTP(w, r)
+	}
 
-    return a.requireActivatedUser(fn)
+	return a.requireActivatedUser(fn)
 }
