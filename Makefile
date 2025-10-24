@@ -6,15 +6,15 @@ run/api:
 	@echo '--Running application--'
 	@go run ./cmd/api --port=$(PORT) --env=$(ENV) --db-dsn=$(TRAINING_DB_DSN) --cors-trusted-origins="$(CORS_TRUSTED_ORIGINS)" --limiter-burst=5 --limiter-rps=2 --limiter-enabled=true --db-max-open-conns=50 --db-max-idle-conns=50  --db-max-idle-time=2h30m
 
+## run/tests: runs testing files 
+.PHONY: run/test
+run/test:
+	go test ./cmd/api/ -v
+
 ## db/sql:connect to the database using psql(terminal)
 .PHONY: db/psql
 db/psql:
 	psql ${TRAINING_DB_DSN}
-
-## run/test: run the testingfiles
-.PHONY: run/test
-run/test:
-	go test -v ./...
 
 ## db/migrations/new name=$1: create a new database migration
 .PHONY: db/migrations/new
@@ -27,7 +27,6 @@ db/migrations/new:
 db/migrations/up:
 	@echo 'Running up migrations...'
 	migrate -path ./migrations -database ${TRAINING_DB_DSN} up
-
 
 ## db/migrations/fix: automatically fix dirty migrations
 .PHONY: db/migrations/fix
