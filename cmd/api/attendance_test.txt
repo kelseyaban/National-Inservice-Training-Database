@@ -1,0 +1,472 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"log"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"testing"
+	"time"
+
+	_ "github.com/lib/pq"
+
+	"github.com/kelseyaban/National-Inservice-Training-Database/internal/data"
+	"github.com/kelseyaban/National-Inservice-Training-Database/internal/mailer"
+)
+
+// The 'configuration' struct is defined here to match the structure in main.go.
+type config struct {
+	port int
+	env  string
+	cors struct {
+		trustedOrigins []string
+	}
+	limiter struct {
+		rps     float64
+		burst   int
+		enabled bool
+	}
+}
+
+// // The 'application' struct is defined here to satisfy the type dependency for the test functions.
+// type application struct {
+// 	config          configuration
+// 	logger          *slog.Logger
+// 	userModel       data.UserModel
+// 	tokenModel      data.TokenModel
+// 	permissionModel data.PermissionModel
+// 	roleModel       data.RoleModel
+// 	mailer          mailer.Mailer
+// 	attendanceModel data.AttendanceModel
+// }
+
+// testApp will be initialized before running any tests
+var testApp *application
+
+// setupTestApp connects to the test database and sets up the app dependencies.
+func setupTestApp() *application {
+	dsn := os.Getenv("TEST_DB_DSN")
+	if dsn == "" {
+		dsn = "postgres://nationalitdb:t1advweb@localhost/nationalitdb?sslmode=disable"
+	}
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		log.Fatalf("error connecting to test database: %v", err)
+	}
+	// Note: Database ping context and logger setup assumed to be sufficient.
+
+	testConfig := configuration{
+		port: 4000,
+		env:  "test",
+		cors: struct {
+			trustedOrigins []string
+		}{trustedOrigins: []string{"http://localhost:3000"}},
+		limiter: struct {
+			rps     float64
+			burst   int
+			enabled bool
+		}{rps: 2.0, burst: 4, enabled: false},
+	}
+
+	testMailer := mailer.New("sandbox.smtp.mailtrap.io", 2525, "213718fe792166", "54177abe81857f", "Testing <test@example.com>")
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	app := &application{
+		config:          testConfig,
+		userModel:       data.UserModel{DB: db},
+		mailer:          testMailer,
+		tokenModel:      data.TokenModel{DB: db},
+		logger:          logger,
+		permissionModel: data.PermissionModel{DB: db},
+		roleModel:       data.RoleModel{DB: db},
+		attendanceModel: data.AttendanceModel{DB: db}, // Initialize AttendanceModel
+	}
+	return app
+}
+
+// clearTestUsers deletes all users whose email ends with '@test.com'.
+func clearTestUsers(db *sql.DB) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	query := `DELETE FROM users WHERE email LIKE '%@test.com'`
+	_, err := db.ExecContext(ctx, query)
+	if err != nil {
+		log.Printf("Warning: Pre-test cleanup failed: %v", err)
+	}
+}
+
+// clearAllAttendanceData cleans up attendance, user_session, and tokens for a given user ID.
+func clearAllAttendanceData(t *testing.T, userID int64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// 1. Delete Attendance records associated with the user's sessions
+	// FIX: Changed user_session to user_session (plural)
+	queryDeleteAttendance := `
+		DELETE FROM attendance 
+		WHERE user_session_id IN (SELECT id FROM user_session WHERE user_id = $1)
+	`
+	_, err := testApp.userModel.DB.ExecContext(ctx, queryDeleteAttendance, userID)
+	if err != nil {
+		t.Logf("Warning: Attendance cleanup failed for user %d: %v", userID, err)
+	}
+
+	// 2. Delete User Session records
+	// FIX: Changed user_session to user_session (plural)
+	queryDeleteUserSessions := `DELETE FROM user_session WHERE user_id = $1`
+	_, err = testApp.userModel.DB.ExecContext(ctx, queryDeleteUserSessions, userID)
+	if err != nil {
+		t.Logf("Warning: UserSession cleanup failed for user %d: %v", userID, err)
+	}
+
+	// 3. Delete user tokens
+	queryDeleteTokens := `DELETE FROM tokens WHERE user_id = $1`
+	_, err = testApp.userModel.DB.ExecContext(ctx, queryDeleteTokens, userID)
+	if err != nil {
+		t.Logf("Warning: Token cleanup failed for user %d: %v", userID, err)
+	}
+
+	// 4. Delete the user
+	queryDeleteUser := `DELETE FROM users WHERE id = $1`
+	_, err = testApp.userModel.DB.ExecContext(ctx, queryDeleteUser, userID)
+	if err != nil {
+		t.Logf("Warning: User cleanup failed for user %d: %v", userID, err)
+	}
+}
+
+// TestMain runs once before all tests
+func TestMain(m *testing.M) {
+	if testApp == nil {
+		testApp = setupTestApp()
+		// Initial user cleanup before any tests run
+		clearTestUsers(testApp.userModel.DB)
+	}
+	code := m.Run()
+	os.Exit(code)
+}
+
+// helper to perform requests (uses testApp.routes() which is defined in main.go)
+func executeRequest(req *http.Request) *httptest.ResponseRecorder {
+	rr := httptest.NewRecorder()
+	// NOTE: This assumes testApp.routes() is defined in cmd/api/main.go or an imported package.
+	router := testApp.routes()
+	router.ServeHTTP(rr, req)
+	return rr
+}
+
+// newAuthenticatedRequest is a helper that creates an *http.Request with Authorization
+// and Content-Type headers set, accepting the raw []byte body.
+func newAuthenticatedRequest(method, url string, body []byte, token string) *http.Request {
+	// bytes.NewReader(body) returns an io.Reader, which is what httptest.NewRequest expects.
+	req := httptest.NewRequest(method, url, bytes.NewReader(body))
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	return req
+}
+
+// createTestUserAndToken inserts a user directly into the database and generates an
+// API token for them, returning the user ID and token string.
+func createTestUserAndToken(t *testing.T) (int64, string) {
+	// 1. Create a dummy user directly in the database model
+	// FIX: Added unique suffix to Username to prevent "duplicate key" error across tests
+	uniqueSuffix := time.Now().Format("0405.000") // Unique minute-second-millisecond
+	user := &data.User{
+		RegulationNumber: "R77777",
+		Username:         "attendant_test_user_" + uniqueSuffix,
+		FName:            "Attend",
+		LName:            "User",
+		Email:            time.Now().Format("20060102150405") + "@test.com", // Ensure unique email
+		Gender:           "F",
+		Formation:        1,
+		Rank:             1,
+		Postings:         1,
+		Activated:        true,
+	}
+	// Use a strong password hash for the test user
+	err := user.Password.Set("P@ssword123")
+	if err != nil {
+		t.Fatalf("Failed to set test user password: %v", err)
+	}
+
+	err = testApp.userModel.Insert(user)
+	if err != nil {
+		t.Fatalf("Failed to insert test user directly into DB: %v", err)
+	}
+
+	// 2. Generate a token for the newly created user ID
+	token, err := testApp.tokenModel.New(user.ID, 24*time.Hour, data.ScopeAuthentication)
+	if err != nil {
+		t.Fatalf("Failed to generate authentication token: %v", err)
+	}
+
+	return user.ID, token.Plaintext
+}
+
+// createTestUserSession inserts a user_session record for a given userID and returns its ID.
+func createTestUserSession(t *testing.T, userID int64) int64 {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// FIX: Changed user_session to user_session (plural)
+	query := `
+		INSERT INTO user_session (user_id, session_id, created_at) 
+		VALUES ($1, $2, now()) 
+		RETURNING id`
+
+	var userSessionID int64
+	// NOTE: The session_id=1 is a dummy value; ensure your test database allows it.
+	err := testApp.userModel.DB.QueryRowContext(ctx, query, userID, 1).Scan(&userSessionID)
+	if err != nil {
+		t.Fatalf("Failed to insert test user session: %v", err)
+	}
+	return userSessionID
+}
+
+// createTestAttendance inserts a valid attendance record directly into the database.
+func createTestAttendance(t *testing.T, userSessionID int64) *data.Attendance {
+	attendance := &data.Attendance{
+		UserSessionID:    userSessionID,
+		AttendanceStatus: true,
+		Date:             time.Now().In(time.UTC).Truncate(24 * time.Hour),
+	}
+	err := testApp.attendanceModel.Insert(attendance)
+	if err != nil {
+		t.Fatalf("Failed to insert attendance record directly into DB: %v", err)
+	}
+	return attendance
+}
+
+// --- Test Handlers ---
+
+func TestCreateAttendanceHandler(t *testing.T) {
+	// 1. Setup authenticated user, get token, and setup FKs
+	userID, authToken := createTestUserAndToken(t)
+	userSessionID := createTestUserSession(t, userID)
+
+	// Schedule cleanup for the user and associated records
+	t.Cleanup(func() {
+		clearAllAttendanceData(t, userID)
+	})
+
+	testCases := []struct {
+		name              string
+		attendancePayload map[string]interface{}
+		expectedStatus    int
+	}{
+		{
+			name: "Success: Valid Attendance Record",
+			attendancePayload: map[string]interface{}{
+				"user_session_id": userSessionID,
+				"attendance":      true,
+				"date":            time.Now().Format("2006-01-02"),
+			},
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "Failure: Missing User Session ID (Validation Fail)",
+			attendancePayload: map[string]interface{}{
+				// "user_session_id" is missing/zero
+				"attendance": true,
+				"date":       time.Now().Format("2006-01-02"),
+			},
+			expectedStatus: http.StatusUnprocessableEntity, // 422 for validation failure
+		},
+		{
+			name: "Failure: Missing Date (Validation Fail)",
+			attendancePayload: map[string]interface{}{
+				"user_session_id": userSessionID,
+				"attendance":      true,
+				// "date" is missing/empty string
+			},
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
+		// New Test Case 1: Foreign Key Constraint Violation (results in 500 server error)
+		{
+			name: "Failure: Non-existent User Session ID (DB Error)",
+			attendancePayload: map[string]interface{}{
+				"user_session_id": int64(999999), // ID that certainly does not exist
+				"attendance":      true,
+				"date":            time.Now().Format("2006-01-02"),
+			},
+			expectedStatus: http.StatusInternalServerError, // Expected FK error response
+		},
+	}
+
+	// Separate test case for malformed JSON, as it requires special body handling
+	t.Run("Failure: Malformed JSON Payload (Bad Request)", func(t *testing.T) {
+		// Send a non-JSON body, e.g., a simple string that cannot be parsed
+		req := newAuthenticatedRequest(http.MethodPost, "/v1/attendance", []byte("{not json"), authToken)
+		rr := executeRequest(req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected %d (%s); got %d (%s)\nBody: %s",
+				http.StatusBadRequest, http.StatusText(http.StatusBadRequest),
+				rr.Code, http.StatusText(rr.Code),
+				rr.Body.String())
+		}
+	})
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := json.Marshal(tc.attendancePayload)
+			if err != nil {
+				t.Fatalf("Failed to marshal payload: %v", err)
+			}
+
+			// Pass raw []byte 'body'
+			req := newAuthenticatedRequest(http.MethodPost, "/v1/attendance", body, authToken)
+			rr := executeRequest(req)
+
+			if rr.Code != tc.expectedStatus {
+				t.Errorf("expected %d (%s); got %d (%s)\nBody: %s",
+					tc.expectedStatus, http.StatusText(tc.expectedStatus),
+					rr.Code, http.StatusText(rr.Code),
+					rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestDisplayIndividualAttendanceHandler(t *testing.T) {
+	// 1. Setup authenticated user, token, and FKs
+	userID, authToken := createTestUserAndToken(t)
+	userSessionID := createTestUserSession(t, userID)
+
+	// 2. Create a specific attendance record to retrieve
+	attendance := createTestAttendance(t, userSessionID)
+
+	t.Cleanup(func() {
+		clearAllAttendanceData(t, userID)
+	})
+
+	t.Run("Success: Valid ID", func(t *testing.T) {
+		url := "/v1/attendance/" + strconv.FormatInt(attendance.ID, 10)
+
+		// Pass nil for the body for GET requests
+		req := newAuthenticatedRequest(http.MethodGet, url, nil, authToken)
+		rr := executeRequest(req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected %d (%s); got %d (%s)\nBody: %s",
+				http.StatusOK, http.StatusText(http.StatusOK),
+				rr.Code, http.StatusText(rr.Code), rr.Body.String())
+		}
+
+		// Optionally, check the response body to ensure the correct data was returned
+		var response struct {
+			Attendance data.Attendance `json:"attendance"`
+		}
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if response.Attendance.ID != attendance.ID {
+			t.Errorf("expected attendance ID %d, got %d", attendance.ID, response.Attendance.ID)
+		}
+	})
+
+	t.Run("Failure: Record Not Found", func(t *testing.T) {
+		// Use a large ID unlikely to exist
+		url := "/v1/attendance/999999"
+		req := newAuthenticatedRequest(http.MethodGet, url, nil, authToken)
+		rr := executeRequest(req)
+
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("expected %d (%s); got %d (%s)\nBody: %s",
+				http.StatusNotFound, http.StatusText(http.StatusNotFound),
+				rr.Code, http.StatusText(rr.Code), rr.Body.String())
+		}
+	})
+
+}
+
+func TestUpdateAttendanceHandler(t *testing.T) {
+	// 1. Setup authenticated user, token, and FKs
+	userID, authToken := createTestUserAndToken(t)
+	userSessionID := createTestUserSession(t, userID)
+
+	// 2. Create a specific attendance record to update
+	attendance := createTestAttendance(t, userSessionID)
+	initialStatus := attendance.AttendanceStatus
+
+	t.Cleanup(func() {
+		clearAllAttendanceData(t, userID)
+	})
+
+	url := "/v1/attendance/" + strconv.FormatInt(attendance.ID, 10)
+
+	t.Run("Success: Update Status", func(t *testing.T) {
+		newStatus := !initialStatus // Toggle the status
+
+		payload := map[string]interface{}{
+			"attendance": newStatus,
+		}
+		body, _ := json.Marshal(payload)
+
+		// Pass raw []byte 'body'
+		req := newAuthenticatedRequest(http.MethodPut, url, body, authToken)
+		rr := executeRequest(req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected %d (%s); got %d (%s)\nBody: %s",
+				http.StatusOK, http.StatusText(http.StatusOK),
+				rr.Code, http.StatusText(rr.Code), rr.Body.String())
+		}
+
+		var response struct {
+			Attendance data.Attendance `json:"attendance"`
+		}
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if response.Attendance.AttendanceStatus != newStatus {
+			t.Errorf("expected updated status %v, got %v", newStatus, response.Attendance.AttendanceStatus)
+		}
+	})
+
+	t.Run("Failure: Update Record Not Found", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"attendance": true,
+		}
+		body, _ := json.Marshal(payload)
+
+		// Use a large ID unlikely to exist
+		notFoundURL := "/v1/attendance/999999"
+		// Pass raw []byte 'body'
+		req := newAuthenticatedRequest(http.MethodPut, notFoundURL, body, authToken)
+		rr := executeRequest(req)
+
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("expected %d (%s); got %d (%s)\nBody: %s",
+				http.StatusNotFound, http.StatusText(http.StatusNotFound),
+				rr.Code, http.StatusText(rr.Code), rr.Body.String())
+		}
+	})
+
+	t.Run("Failure: Validation Error on Update", func(t *testing.T) {
+		// Attempt to update the date to an empty string (or an invalid format that parseDate returns as zero)
+		payload := map[string]interface{}{
+			"date": "",
+		}
+		body, _ := json.Marshal(payload)
+
+		// Pass raw []byte 'body'
+		req := newAuthenticatedRequest(http.MethodPut, url, body, authToken)
+		rr := executeRequest(req)
+
+		if rr.Code != http.StatusUnprocessableEntity {
+			t.Errorf("expected %d (%s); got %d (%s)\nBody: %s",
+				http.StatusUnprocessableEntity, http.StatusText(http.StatusUnprocessableEntity),
+				rr.Code, http.StatusText(rr.Code), rr.Body.String())
+		}
+	})
+}

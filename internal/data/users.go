@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
 	"github.com/kelseyaban/National-Inservice-Training-Database/internal/validator"
 	"golang.org/x/crypto/bcrypt"
 )

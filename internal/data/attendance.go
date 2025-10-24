@@ -20,7 +20,7 @@ type Attendance struct {
 // Performs the checks
 func ValidateAttendance(v *validator.Validator, attendance *Attendance) {
 	// check if the UserSessionID field is provided
-	v.Check(attendance.UserSessionID != 0, "user_id", "must be provided")
+	v.Check(attendance.UserSessionID != 0, "user_session_id", "must be provided")
 	// check if the AttendanceStatus field is provided
 	v.Check(attendance.AttendanceStatus == true || attendance.AttendanceStatus == false, "attendance", "must be provided")
 	// check if the Date field is provided
